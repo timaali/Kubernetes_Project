@@ -1,0 +1,39 @@
+version: '3.7'
+services: 
+    client: 
+        container_name: client
+        build: ./client/
+        image: client:latest
+        ports: 
+          - 8080:80
+        depends_on:
+          - backend
+
+    backend:
+        container_name: backend
+        build: ./backend/
+        image: backend:latest
+        env_file:
+          - ./backend/.env
+        ports:
+          - 5000:80
+        volumes: 
+          - ./backend/logs:/var/log/supervisor
+        depends_on:
+          - mongodb
+
+    mongodb:
+        image: mongo:latest
+        environment:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: rootpassword
+        ports:
+          - 27017:27017
+        volumes:
+          - ./mongodb_data:/data/db
+
+volumes: 
+    mongodb_data: 
+          
+
+
