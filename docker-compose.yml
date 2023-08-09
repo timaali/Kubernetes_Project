@@ -6,6 +6,8 @@ services:
         image: client:latest
         ports: 
           - 8080:80
+        env_file: 
+          - ./client/.env
         depends_on:
           - backend
 

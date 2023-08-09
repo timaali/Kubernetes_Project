@@ -1,0 +1,25 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: us-east-2 
+  region: yolo-cluster 
+
+managedNodeGroups:
+  - name: nodegroup-1
+    instanceType: t3.medium
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    volumeSize: 80  # The size of the root volume in GB
+
+iam:
+  withOIDC: true  # Enable OIDC provider for IAM roles
+
+addons:
+  externalDNS:
+    enabled: true  # Enable ExternalDNS add-on to automatically configure DNS records
+  albIngress:
+      enabled: true  # Enable ALB Ingress Controller add-on for Ingress resources
+
+kubernetesVersion: "1.22"  # Set the desired Kubernetes version for your EKS cluster

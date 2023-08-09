@@ -1,0 +1,23 @@
+{
+    "apiVersion": "eksctl.io/v1alpha5",
+    "kind": "ClusterConfig",
+    "metadata": {
+      "name": "yolo-cluster",
+      "region": "us-east-2"
+    },
+    "managedNodeGroups": [
+      {
+        "name": "nodegroup-1",
+        "instanceType": "t3.medium",
+        "desiredCapacity": 1,
+        "minSize": 1,
+        "maxSize": 1,
+        "volumeSize": 80,
+        "ssh": {"allow":true, "publicKeyName": "YoloProject"}
+      }
+    ],
+    "iam": {
+      "withOIDC": true
+    }
+  }
+  

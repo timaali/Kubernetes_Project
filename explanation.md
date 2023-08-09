@@ -110,3 +110,26 @@ CMD ["/usr/bin/supervisord","-n","-c","/etc/supervisor/supervisord.conf"]
 - Cloned the repository to my local repository
 - integrated the repo with docker for deployment
 - Pushed the changes to github.
+
+
+--------------------------AWS Deployment Expanation-----------------------------------------------------------
+
+
+To facilitae successful deployment on AWS CLoud. Configuration is defined in the aws_deployment.sh file.
+
+This configuration files will guide you on the below steps:
+
+- Creating a cluster on AWS for our deployment
+- In the cluster we creat the helm charts - an easier way to deploy instead of always writing yaml files
+- Install a load-balancer
+- Install bitnami helm chart that will help in installation of the external DNS
+- Create a namespace for our cluster
+- install Mongo
+- create a secret for the .env
+- Deploy the backend and the client which contain the below:
+        - Deployment - deployment of pods
+        - service - internal networking, which port will be exposed to the other containers or services
+        - ingress - internet facing configuration
+
+To note:
+For all permission denied errors, please login to the IAM on the cloud console, for your specified user add inline permissions for the services you require or the already defined permissions

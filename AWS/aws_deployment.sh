@@ -1,19 +1,10 @@
+#create a cluster
 export AWS_REGION=us-east-2
 export CLUSTER_NAME=yolo-cluster
 
-eksctl create cluster \
-  --name $CLUSTER_NAME \
-  --region $AWS_REGION \
-  --version 1.22 \
-  --with-oidc \
-  --alb-ingress-access \
-  --external-dns-access \
-  --node-type t3.medium \
-  --nodes 1 \
-  --nodes-min 1 \
-  --nodes-max 1 \
-  --managed
+eksctl create cluster -f cluster.json
 
+#create the helm chart in the cluster
 helm repo add eks https://aws.github.io/eks-charts
 kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
 
@@ -23,6 +14,7 @@ export VPC_ID=$(eksctl get cluster \
   --output json \
   | jq -r '.[0].ResourcesVpcConfig.VpcId')
 
+# install the load balancer
 helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
   --set clusterName=$CLUSTER_NAME \
   --set region=$AWS_REGION \
@@ -30,6 +22,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
   --set serviceAccount.name=aws-load-balancer-controller \
   -n kube-system
 
+#install bitnami
 helm repo add bitnami https://charts.bitnami.com/bitnami
 
 helm install external-dns bitnami/external-dns \
@@ -41,17 +34,31 @@ kubectl create ns yolo
 
 
 # deploy mongo db cluster with stateful set
-kubectl apply -n churpy  -f ./mongo/storage-class.yaml
-kubectl patch storageclass sc-gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-kubectl apply -n churpy  -f ./mongo/services.yaml
-kubectl apply -n churpy -f ./mongo/rbac.yaml
-kubectl apply -n churpy -f ./mongo/mongo-statefulset.yaml
-kubectl apply -n churpy -f ./mongo/lb-service.yaml
-
+cd mongo
+export AWS_REGION=us-east-2
+eksctl utils associate-iam-oidc-provider --region=us-east-2 --cluster=yolo-cluster --approve
+eksctl create iamserviceaccount \
+  --name ebs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster yolo-cluster \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve \
+  --role-only \
+  --role-name AmazonEKS_EBS_CSI_DriverRole
+eksctl create addon --name aws-ebs-csi-driver --cluster yolo-cluster --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AmazonEKS_EBS_CSI_DriverRole --force
+kubectl apply -f pvc.yaml -n yolo
+cd ..
 kubectl create secret -n yolo generic backend-secrets --from-env-file=.env
+cd ..
+cd client
+kubectl create secret -n yolo generic client-secrets --from-env-file=.env
+cd ../AWS
 
 # deploy yolo backend cluster
-kubectl apply -n churpy -f yolo-backend.yaml
+kubectl apply -n yolo -f yolo-backend.yaml
 
 # deploy yolo client cluster
-kubectl apply -n churpy -f yolo-client.yaml
+kubectl apply -n yolo -f yolo-client.yaml
+
+#to expose the port
+kubectl expose deployment client --type=LoadBalancer --port=80 --target-port=80 --name=client -n yolo
