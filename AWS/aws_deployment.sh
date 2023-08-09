@@ -47,6 +47,8 @@ eksctl create iamserviceaccount \
   --role-name AmazonEKS_EBS_CSI_DriverRole
 eksctl create addon --name aws-ebs-csi-driver --cluster yolo-cluster --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AmazonEKS_EBS_CSI_DriverRole --force
 kubectl apply -f pvc.yaml -n yolo
+
+#create secret in the .env file
 cd ..
 kubectl create secret -n yolo generic backend-secrets --from-env-file=.env
 cd ..

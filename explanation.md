@@ -113,23 +113,86 @@ CMD ["/usr/bin/supervisord","-n","-c","/etc/supervisor/supervisord.conf"]
 
 
 --------------------------AWS Deployment Expanation-----------------------------------------------------------
+Located in the AWS Folder:
 
-
-To facilitae successful deployment on AWS CLoud. Configuration is defined in the aws_deployment.sh file.
+To facilitate successful deployment on AWS CLoud. Configuration is defined in the aws_deployment.sh file.
 
 This configuration files will guide you on the below steps:
 
 - Creating a cluster on AWS for our deployment
+   export AWS_REGION=us-east-2
+   export CLUSTER_NAME=yolo-cluster
+
+   eksctl create cluster -f cluster.json  
+
 - In the cluster we creat the helm charts - an easier way to deploy instead of always writing yaml files
+   helm repo add eks https://aws.github.io/eks-charts
+   kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller/crds?ref=master"
+
+   export VPC_ID=$(eksctl get cluster \
+     --name $CLUSTER_NAME \
+     --region $AWS_REGION \
+     --output json \
+     | jq -r '.[0].ResourcesVpcConfig.VpcId')
+
+
 - Install a load-balancer
+    helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+    --set clusterName=$CLUSTER_NAME \
+    --set region=$AWS_REGION \
+    --set vpcId=$VPC_ID \
+    --set serviceAccount.name=aws-load-balancer-controller \
+    -n kube-system
+
+
 - Install bitnami helm chart that will help in installation of the external DNS
+   helm repo add bitnami https://charts.bitnami.com/bitnami
+
+   helm install external-dns bitnami/external-dns \
+      --set provider=aws \
+      -n kube-system
+
 - Create a namespace for our cluster
+    kubectl create ns yolo
+
+
 - install Mongo
+   cd mongo
+        export AWS_REGION=us-east-2
+        eksctl utils associate-iam-oidc-provider --region=us-east-2 --cluster=yolo-cluster --approve
+        eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster yolo-cluster \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve \
+        --role-only \
+        --role-name AmazonEKS_EBS_CSI_DriverRole
+        eksctl create addon --name aws-ebs-csi-driver --cluster yolo-cluster --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/AmazonEKS_EBS_CSI_DriverRole --force
+        kubectl apply -f pvc.yaml -n yolo
+        
+
 - create a secret for the .env
+       cd ..
+        kubectl create secret -n yolo generic backend-secrets --from-env-file=.env
+        cd ..
+        cd client
+        kubectl create secret -n yolo generic client-secrets --from-env-file=.env
+        cd ../AWS
+
 - Deploy the backend and the client which contain the below:
         - Deployment - deployment of pods
         - service - internal networking, which port will be exposed to the other containers or services
         - ingress - internet facing configuration
+
+        kubectl apply -n yolo -f yolo-backend.yaml
+        kubectl apply -n yolo -f yolo-client.yaml
+
+- Expose the ports
+        kubectl expose deployment client --type=LoadBalancer --port=80 --target-port=80 --name=client -n yolo
+               
+- Stateful sets implemented using the statefulset.yaml configuration to allow for persistent storage in mongo db
+
 
 To note:
 For all permission denied errors, please login to the IAM on the cloud console, for your specified user add inline permissions for the services you require or the already defined permissions
